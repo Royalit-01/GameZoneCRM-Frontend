@@ -68,7 +68,7 @@ const CreateOrders = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(
-          `backend_path/api/customers/getStoreByNumber/${storeID}`,
+          `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -175,7 +175,7 @@ const CreateOrders = () => {
   // Fetch active screens
   useEffect(() => {
     const token = localStorage.getItem("token");
-    fetch("backend_path/api/customers/active-screens", {
+    fetch("https://gamezonecrm.onrender.com/api/customers/active-screens", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -190,7 +190,7 @@ const CreateOrders = () => {
 
   useEffect(() => {
     if (formData.game) {
-      fetch("backend_path/api/admin/discounts/today")
+      fetch("https://gamezonecrm.onrender.com/api/admin/discounts/today")
         .then((res) => res.json())
         .then((data) => {
           const paid = getGamePrice(
@@ -323,7 +323,7 @@ const CreateOrders = () => {
       if (value.length >= 3) {
         try {
           const res = await fetch(
-            `backend_path/api/customers/search?query=${value}`
+            `https://gamezonecrm.onrender.com/api/customers/search?query=${value}`
           );
           if (res.ok) {
             const data = await res.json();
@@ -380,7 +380,7 @@ const CreateOrders = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("backend_path/api/customers/add", {
+      const response = await fetch("https://gamezonecrm.onrender.com/api/customers/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -402,7 +402,7 @@ const CreateOrders = () => {
         console.log("Marking coupon as used: mai andar hu");
         console.log("Coupon code:", couponDetails.code);
         await fetch(
-          `backend_path/api/admin/discounts/markUsed/${couponDetails.code}`,
+          `https://gamezonecrm.onrender.com/api/admin/discounts/markUsed/${couponDetails.code}`,
           {
             method: "PATCH",
             headers: {
@@ -414,7 +414,7 @@ const CreateOrders = () => {
 
       // save data of snacks and drinks in database for cafe purpose only if cafe is enabled
       if (fetchedStore?.isCafeEnabled && snackData.items?.length > 0) {
-        await fetch("backend_path/api/orders/gamezone", {
+        await fetch("https://gamezonecrm.onrender.com/api/orders/gamezone", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -464,7 +464,7 @@ const CreateOrders = () => {
 
     try {
       const res = await fetch(
-        `backend_path/api/admin/discounts/getCoupon/${couponCode}`
+        `https://gamezonecrm.onrender.com/api/admin/discounts/getCoupon/${couponCode}`
       );
       const response = await res.json();
 

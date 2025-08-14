@@ -91,7 +91,7 @@ const ViewOrders = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `backend_path/api/customers/getStoreByNumber/${storeID}`,
+          `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -165,7 +165,7 @@ const ViewOrders = () => {
       .map((screen) => `screens=${encodeURIComponent(screen)}`)
       .join("&");
 
-    fetch(`backend_path/api/customers/active?${queryString}`, {
+    fetch(`https://gamezonecrm.onrender.com/api/customers/active?${queryString}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -215,7 +215,7 @@ const ViewOrders = () => {
 
   // fetch today's discount
   useEffect(() => {
-    fetch("backend_path/api/admin/discounts/today")
+    fetch("https://gamezonecrm.onrender.com/api/admin/discounts/today")
       .then((res) => res.json())
       .then((data) => {
         let discountAmount = 0;
@@ -322,7 +322,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `backend_path/api/customers/update/${bookingId}`,
+        `https://gamezonecrm.onrender.com/api/customers/update/${bookingId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -409,7 +409,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `backend_path/api/customers/update/${bookingId}`,
+        `https://gamezonecrm.onrender.com/api/customers/update/${bookingId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -421,7 +421,7 @@ const ViewOrders = () => {
 
       if (res.ok) {
         // save data of snacks and drinks in databse for cafe purpose
-        await fetch("backend_path/api/orders/gamezone", {
+        await fetch("https://gamezonecrm.onrender.com/api/orders/gamezone", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -608,7 +608,7 @@ const ViewOrders = () => {
 
     const token = localStorage.getItem("token"); // Get token from localStorage
 
-    await fetch("backend_path/api/customers/log-activity-save", {
+    await fetch("https://gamezonecrm.onrender.com/api/customers/log-activity-save", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -635,7 +635,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `backend_path/api/customers/status/${bookingId}`,
+        `https://gamezonecrm.onrender.com/api/customers/status/${bookingId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -678,7 +678,7 @@ const ViewOrders = () => {
       const token = localStorage.getItem("token"); // ✅ Declare token here
       if (!token) throw new Error("No token found in localStorage");
       // Replace with your actual backend base URL
-      const backendBaseUrl = "backend_path/api/ledgers";
+      const backendBaseUrl = "https://gamezonecrm.onrender.com/api/ledgers";
 
       // Make POST request to add transaction
       const response = await fetch(

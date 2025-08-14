@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Header from "./components/header";
 
-const LEDGER_API_URL = "backend_path/api/ledgers";
+const LEDGER_API_URL = "https://gamezonecrm.onrender.com/api/ledgers";
 
 const CustomerLedger = () => {
   const [ledgers, setLedgers] = useState([]);
