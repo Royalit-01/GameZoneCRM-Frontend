@@ -91,7 +91,9 @@ const Layout = ({ children }) => {
         >
           <a href="/create-order" style={menuLinkStyle}>Create Order</a>
           <a href="/orders" style={menuLinkStyle}>View Orders</a>
-          <a href="/ledger" style={menuLinkStyle}>Ledgers</a>
+          <a href="/ledger" style={menuLinkStyle}>Add Ledger</a>
+          <a href="/customers" style={menuLinkStyle}>Customers</a>
+          <a href="/view-ledger" style={menuLinkStyle}>View Ledger</a>
         </div>
       )}
 
