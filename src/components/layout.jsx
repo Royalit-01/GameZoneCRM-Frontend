@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "./header";
 import Sidebar from "./Sidebar";
 
@@ -11,8 +12,47 @@ const colors = {
 };
 
 const Layout = ({ children }) => {
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  const menuItems = [
+    { icon: "➕", label: "Create Orders", href: "/create-order" },
+    { icon: "👁️", label: "View Orders", href: "/orders" },
+    { icon: "📖", label: "Add Ledger", href: "/ledger" },
+    { icon: "👤", label: "Customer", href: "/customers" },
+    { icon: "📊", label: "View Ledger", href: "/view-ledger" },
+  ];
+
+  const handleLogout = async () => {
+    const confirmLogout = window.confirm("Are you sure you want to logout?");
+    if (!confirmLogout) return;
+
+    const token = localStorage.getItem("token");
+
+    try {
+      if (token) {
+        await fetch("https://gamezonecrm.onrender.com/api/customers/log-activity-save", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: "logout",
+            details: {},
+          }),
+        });
+      }
+    } catch (err) {
+      console.error("Logout activity logging failed:", err);
+    }
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("staff");
+    navigate("/", { replace: true });
+    window.location.reload();
+  };
 
   const toggleMobileMenu = () => setMobileMenuOpen(!isMobileMenuOpen);
 
@@ -26,6 +66,8 @@ const Layout = ({ children }) => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // handleLogout is already defined above
 
   return (
     <div
@@ -74,26 +116,116 @@ const Layout = ({ children }) => {
         )}
       </div>
 
-      {/* Mobile Menu - Centered Content */}
+      {/* Mobile Menu */}
       {isMobile && isMobileMenuOpen && (
-        <div
-          style={{
-            backgroundColor: colors.mainBackground,
-            height: 'calc(100vh - 60px)', // Adjust height under header
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '20px',
-            color: '#fff',
-            padding: '20px',
-          }}
-        >
-          <a href="/create-order" style={menuLinkStyle}>Create Order</a>
-          <a href="/orders" style={menuLinkStyle}>View Orders</a>
-          <a href="/ledger" style={menuLinkStyle}>Add Ledger</a>
-          <a href="/customers" style={menuLinkStyle}>Customers</a>
-          <a href="/view-ledger" style={menuLinkStyle}>View Ledger</a>
+        <div className="mobile-menu">
+          <div className="mobile-menu-content">
+            <div className="menu-header">
+              <h5 className="menu-logo">Gamer Squad</h5>
+            </div>
+
+            <div className="menu-divider" />
+
+            <nav className="menu-nav">
+              {menuItems.map((item, idx) => (
+                <Link 
+                  key={idx} 
+                  to={item.href} 
+                  className="menu-item"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="menu-icon">{item.icon}</span>
+                  <span className="menu-label">{item.label}</span>
+                </Link>
+              ))}
+
+              <button onClick={handleLogout} className="menu-item logout-btn">
+                <span className="menu-icon">🚪</span>
+                <span className="menu-label">Logout</span>
+              </button>
+            </nav>
+          </div>
+
+          <style>{`
+            .mobile-menu {
+              position: fixed;
+              top: 60px;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background-color: #1e293b;
+              z-index: 1000;
+              overflow-y: auto;
+            }
+
+            .mobile-menu-content {
+              padding: 1.5rem;
+            }
+
+            .menu-header {
+              margin-bottom: 2rem;
+              text-align: center;
+            }
+
+            .menu-logo {
+              color: #22c55e;
+              font-weight: bold;
+              font-size: 1.8rem;
+              margin: 0;
+            }
+
+            .menu-divider {
+              height: 1px;
+              background-color: #334155;
+              margin-bottom: 1.5rem;
+              width: 100%;
+            }
+
+            .menu-nav {
+              display: flex;
+              flex-direction: column;
+              gap: 1rem;
+            }
+
+            .menu-item {
+              display: flex;
+              align-items: center;
+              gap: 1rem;
+              color: white;
+              text-decoration: none;
+              padding: 0.75rem;
+              border-radius: 5px;
+              transition: all 0.3s ease;
+              font-size: 1.1rem;
+            }
+
+            .menu-item:hover {
+              background-color: #334155;
+              color: #22c55e;
+            }
+
+            .menu-icon {
+              font-size: 1.3rem;
+            }
+
+            .menu-label {
+              font-weight: 500;
+            }
+
+            .logout-btn {
+              background: none;
+              border: none;
+              width: 100%;
+              text-align: left;
+              margin-top: 2rem;
+              color: ${colors.danger};
+            }
+
+            .logout-btn:hover {
+              background-color: ${colors.danger}22;
+              color: white;
+            }
+          `}</style>
         </div>
       )}
 
