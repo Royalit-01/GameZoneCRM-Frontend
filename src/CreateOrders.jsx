@@ -114,10 +114,15 @@ const CreateOrders = () => {
 
         if (!priceTable[gameName]) priceTable[gameName] = {};
 
-        Object.entries(game.pricing).forEach(([hr, pricingObj]) => {
-          const durationMinutes = parseFloat(hr) * 60;
-          priceTable[gameName][durationMinutes] = pricingObj;
-        });
+        // Add null check for game.pricing
+        if (game.pricing && typeof game.pricing === 'object') {
+          Object.entries(game.pricing).forEach(([hr, pricingObj]) => {
+            const durationMinutes = parseFloat(hr) * 60;
+            priceTable[gameName][durationMinutes] = pricingObj;
+          });
+        } else {
+          console.log(`No pricing data for game: ${gameName}`);
+        }
       }
     });
   }
