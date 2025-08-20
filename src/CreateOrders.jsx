@@ -197,25 +197,33 @@ const CreateOrders = () => {
   useEffect(() => {
     if (formData.game) {
       fetch("https://gamezonecrm.onrender.com/api/admin/discounts/today")
-        .then((res) => res.json())
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            console.log("Discount API Error:", data);
+            return null;
+          }
+          return data;
+        })
         .then((data) => {
           const paid = getGamePrice(
             formData.game,
             Number(formData.duration),
             Number(formData.players)
           );
-          if (!data || data.store !== storeID) {
-            setDiscountAmount(0);
-            setOriginalAmount(paid);
-            setDiscountLabel("");
-            return;
-          }
 
+          // Default values if no discount
           let discountAmount = 0;
           let discountedPaid = paid;
           let discountLabel = "";
 
-          if (data.discountValue && data.discountType) {
+          // Only process discount if we have valid data
+          if (data && data.discountValue && data.discountType) {
+            if (data.store && data.store !== storeID) {
+              console.log("Discount not applicable for this store");
+              return;
+            }
+
             if (data.discountType === "percent") {
               discountAmount = paid * (data.discountValue / 100);
               discountLabel = `${data.discountValue}% OFF`;
