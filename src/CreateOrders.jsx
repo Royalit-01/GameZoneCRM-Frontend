@@ -64,16 +64,19 @@ const CreateOrders = () => {
   useEffect(() => {
     const fetchStoreData = async () => {
       if (!storeID) return;
-      
+
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(
           `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
           }
         );
-        
+
         if (res.data && typeof res.data.isCafeEnabled !== 'undefined') {
           setFetchedStore(res.data);
           // Reset snack data if cafe is disabled
@@ -176,7 +179,10 @@ const CreateOrders = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     fetch("https://gamezonecrm.onrender.com/api/customers/active-screens", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
     })
       .then((res) => res.json())
       .then((data) => {
@@ -406,8 +412,9 @@ const CreateOrders = () => {
           {
             method: "PATCH",
             headers: {
-              "Content-Type": "application/json",
-            },
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
           }
         );
       }
@@ -417,7 +424,8 @@ const CreateOrders = () => {
         await fetch("https://gamezonecrm.onrender.com/api/orders/gamezone", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             customerName: formData.name,

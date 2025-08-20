@@ -93,7 +93,10 @@ const ViewOrders = () => {
         const res = await fetch(
           `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json"
+  }
           }
         );
         const data = await res.json();
