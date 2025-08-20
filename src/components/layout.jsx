@@ -217,7 +217,6 @@ const Layout = ({ children }) => {
               border: none;
               width: 100%;
               text-align: left;
-              margin-top: 2rem;
               color: ${colors.danger};
             }
 
