@@ -29,7 +29,7 @@ function CustomerTable() {
     const fetchCustomers = async () => {
       try {
         const res = await fetch(
-          `https://gamezonecrm.onrender.com/api/customers/all?date=${selectedDate}`,
+          `${import.meta.env.VITE_BACKEND_URL}/api/customers/all?date=${selectedDate}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

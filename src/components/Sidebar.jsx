@@ -20,7 +20,7 @@ const Sidebar = () => {
 
     try {
       if (token) {
-        await fetch("https://gamezonecrm.onrender.com/api/customers/log-activity-save", {
+        await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/log-activity-save`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

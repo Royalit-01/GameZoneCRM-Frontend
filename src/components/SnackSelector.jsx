@@ -20,7 +20,7 @@ const SnackSelector = ({ onChange, reset, storeDetails }) => {
         }
 
         const res = await axios.get(
-          "https://gamezonecrm.onrender.com/api/customers/snacksAndDrinks"
+          `${import.meta.env.VITE_BACKEND_URL}/api/customers/snacksAndDrinks`
         );
         const fetchedItems = res.data;
 

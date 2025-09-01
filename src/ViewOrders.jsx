@@ -91,12 +91,12 @@ const ViewOrders = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
+          `${import.meta.env.VITE_BACKEND_URL}/api/customers/getStoreByNumber/${storeID}`,
           {
-  headers: {
-    "Authorization": `Bearer ${token}`,
-    "Content-Type": "application/json"
-  }
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
           }
         );
         const data = await res.json();
@@ -173,7 +173,7 @@ const ViewOrders = () => {
       .map((screen) => `screens=${encodeURIComponent(screen)}`)
       .join("&");
 
-    fetch(`https://gamezonecrm.onrender.com/api/customers/active?${queryString}`, {
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/active?${queryString}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -223,7 +223,7 @@ const ViewOrders = () => {
 
   // fetch today's discount
   useEffect(() => {
-    fetch("https://gamezonecrm.onrender.com/api/admin/discounts/today")
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/discounts/today`)
       .then((res) => res.json())
       .then((data) => {
         let discountAmount = 0;
@@ -330,7 +330,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `https://gamezonecrm.onrender.com/api/customers/update/${bookingId}`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/update/${bookingId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -344,13 +344,12 @@ const ViewOrders = () => {
           bookings.map((b) =>
             b.id === bookingId
               ? {
-                  ...b,
-                  extend_time: pending.extendTime,
-                  extend_amount: pending.extendAmount,
-                  timeLeft: `${
-                    Number(booking.duration) + pending.extendTime
+                ...b,
+                extend_time: pending.extendTime,
+                extend_amount: pending.extendAmount,
+                timeLeft: `${Number(booking.duration) + pending.extendTime
                   } minutes`,
-                }
+              }
               : b
           )
         );
@@ -417,7 +416,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `https://gamezonecrm.onrender.com/api/customers/update/${bookingId}`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/update/${bookingId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -429,7 +428,7 @@ const ViewOrders = () => {
 
       if (res.ok) {
         // save data of snacks and drinks in databse for cafe purpose
-        await fetch("https://gamezonecrm.onrender.com/api/orders/gamezone", {
+        await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/orders/gamezone`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -447,9 +446,9 @@ const ViewOrders = () => {
           bookings.map((b) =>
             b.id === bookingId
               ? {
-                  ...b,
-                  extraSnacksTotal: extraSnacksTotal,
-                }
+                ...b,
+                extraSnacksTotal: extraSnacksTotal,
+              }
               : b
           )
         );
@@ -469,7 +468,7 @@ const ViewOrders = () => {
     initialMinutes,
     extendTime = 0,
     onFiveMinutesLeft,
-    onTick = () => {},
+    onTick = () => { },
   }) {
     const storageKey = `timer_${bookingId}`;
     const startTimeKey = `start_time_${bookingId}`;
@@ -478,8 +477,10 @@ const ViewOrders = () => {
     const prevInitialMinutesRef = useRef(initialMinutes);
     const lastAppliedExtendRef = useRef(0);
 
-    // Track stopped state
-    const [isStopped, setIsStopped] = useState(false);
+  // Track stopped state
+  const [isStopped, setIsStopped] = useState(false);
+  // Ref for alarm audio
+  const audioRef = useRef(null);
 
     // Initialize lastAppliedExtendRef from localStorage on mount
     useEffect(() => {
@@ -495,7 +496,7 @@ const ViewOrders = () => {
     const [secondsLeft, setSecondsLeft] = useState(() => {
       const startTime = localStorage.getItem(startTimeKey);
       const storedExtend = localStorage.getItem(extendStorageKey) || "0";
-      
+
       if (!startTime) {
         // First time initialization
         const now = new Date().getTime();
@@ -509,7 +510,7 @@ const ViewOrders = () => {
       const totalSeconds = initialMinutes * 60;
       const elapsedSeconds = Math.floor((now - start) / 1000);
       const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-      
+
       // Add any extended time
       return remainingSeconds + (parseInt(storedExtend) * 60);
     });
@@ -545,12 +546,26 @@ const ViewOrders = () => {
     }, [extendTime, storageKey, extendStorageKey]);
 
     // Main timer effect
+    // Ref to ensure alarm/alert only fire once at 0
+    const alarmedRef = useRef(false);
     useEffect(() => {
       if (secondsLeft <= 0) {
         localStorage.removeItem(storageKey);
         localStorage.removeItem(extendStorageKey);
         setIsStopped(true); // Mark as stopped
+        // Play sound and show alert only once
+        if (!alarmedRef.current) {
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(error => {
+              console.log("Audio play failed:", error);
+            });
+          }
+          alarmedRef.current = true;
+        }
         return;
+      } else {
+        alarmedRef.current = false; // Reset if timer is restarted
       }
       if (isStopped) return; // Do not start interval if stopped
 
@@ -586,6 +601,29 @@ const ViewOrders = () => {
     return (
       <span>
         {minutes}:{seconds.toString().padStart(2, "0")} left
+        {/* Hidden audio element for alarm */}
+        <audio 
+          
+          ref={audioRef} 
+          src="/alert.mp3" 
+          
+          preload="auto" 
+          loop={false}
+          onEnded={() => {
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            }
+          }}
+        
+          loop={false}
+          onEnded={() => {
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            }
+          }}
+        />
         {isStopped && (
           <span style={{ color: "red", marginLeft: 8 }}>(Stopped)</span>
         )}
@@ -616,7 +654,7 @@ const ViewOrders = () => {
 
     const token = localStorage.getItem("token"); // Get token from localStorage
 
-    await fetch("https://gamezonecrm.onrender.com/api/customers/log-activity-save", {
+    await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/log-activity-save`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -643,7 +681,7 @@ const ViewOrders = () => {
 
     try {
       const res = await fetch(
-        `https://gamezonecrm.onrender.com/api/customers/status/${bookingId}`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/status/${bookingId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -686,7 +724,7 @@ const ViewOrders = () => {
       const token = localStorage.getItem("token"); // ✅ Declare token here
       if (!token) throw new Error("No token found in localStorage");
       // Replace with your actual backend base URL
-      const backendBaseUrl = "https://gamezonecrm.onrender.com/api/ledgers";
+      const backendBaseUrl = `${import.meta.env.VITE_BACKEND_URL}/api/ledgers`;
 
       // Make POST request to add transaction
       const response = await fetch(
@@ -961,11 +999,11 @@ const ViewOrders = () => {
                         {(booking.remainingAmount !== 0 ||
                           booking.extraSnacksTotal !== 0 ||
                           booking.extend_time !== 0) && (
-                          <li style={{ color: "red", fontSize: "16px" }}>
-                            {" "}
-                            Remaining Amount : ₹{remainingAmount.toFixed(2)}
-                          </li>
-                        )}
+                            <li style={{ color: "red", fontSize: "16px" }}>
+                              {" "}
+                              Remaining Amount : ₹{remainingAmount.toFixed(2)}
+                            </li>
+                          )}
                       </ul>
 
                       {/* Button row: Stop and Extensions in the same row */}

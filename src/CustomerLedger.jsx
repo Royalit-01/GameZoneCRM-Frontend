@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Header from "./components/header";
 
-const LEDGER_API_URL = "https://gamezonecrm.onrender.com/api/ledgers";
+const LEDGER_API_URL = import.meta.env.VITE_BACKEND_URL;
 
 const CustomerLedger = () => {
   const [ledgers, setLedgers] = useState([]);
@@ -17,7 +17,7 @@ const CustomerLedger = () => {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    fetch(LEDGER_API_URL)
+    fetch(`${LEDGER_API_URL}/api/ledgers`)
       .then((res) => res.json())
       .then((data) => {
         setLedgers(data);
@@ -67,7 +67,7 @@ const CustomerLedger = () => {
     setSelectedCustomer(updatedCustomer);
 
     // POST to backend
-    fetch(`${LEDGER_API_URL}/${selectedCustomer._id}/addentry`, {
+    fetch(`${LEDGER_API_URL}/api/ledgers/${selectedCustomer._id}/addentry`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

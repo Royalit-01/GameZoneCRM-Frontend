@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Header from "./components/header";
 
-const LEDGER_API_URL = "https://gamezonecrm.onrender.com/api/ledgers";
+const LEDGER_API_URL = import.meta.env.VITE_BACKEND_URL;
 
 const CustomerLedger = () => {
   const [ledgers, setLedgers] = useState([]);
@@ -10,7 +10,7 @@ const CustomerLedger = () => {
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    fetch(LEDGER_API_URL)
+    fetch(`${LEDGER_API_URL}/api/ledgers`)
       .then((res) => res.json())
       .then((data) => {
         setLedgers(data);

@@ -38,6 +38,7 @@ const CreateOrders = () => {
   const [fetchedStore, setFetchedStore] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showGamingDetails, setShowGamingDetails] = useState(true);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -52,6 +53,8 @@ const CreateOrders = () => {
     snacks: 0,
     totalAmount: 0,
     payment: "Cash",
+    onlineAmount: 0,
+    cashAmount: 0,
   });
 
   //set snackTotal when SnackSelector changes
@@ -68,7 +71,7 @@ const CreateOrders = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(
-          `https://gamezonecrm.onrender.com/api/customers/getStoreByNumber/${storeID}`,
+          `${import.meta.env.VITE_BACKEND_URL}/api/customers/getStoreByNumber/${storeID}`,
           {
             headers: {
               "Authorization": `Bearer ${token}`,
@@ -183,7 +186,7 @@ const CreateOrders = () => {
   // Fetch active screens
   useEffect(() => {
     const token = localStorage.getItem("token");
-    fetch("https://gamezonecrm.onrender.com/api/customers/active-screens", {
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/active-screens`, {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
@@ -201,7 +204,7 @@ const CreateOrders = () => {
 
   useEffect(() => {
     if (formData.game) {
-      fetch("https://gamezonecrm.onrender.com/api/admin/discounts/today")
+      fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/discounts/today`)
         .then(async (res) => {
           const data = await res.json();
           if (!res.ok) {
@@ -342,7 +345,7 @@ const CreateOrders = () => {
       if (value.length >= 3) {
         try {
           const res = await fetch(
-            `https://gamezonecrm.onrender.com/api/customers/search?query=${value}`
+            `${import.meta.env.VITE_BACKEND_URL}/api/customers/search?query=${value}`
           );
           if (res.ok) {
             const data = await res.json();
@@ -395,11 +398,14 @@ const CreateOrders = () => {
       discount: discountLabel,
       remainingAmount: formData.payment === "Unpaid" ? formData.totalAmount : 0,
       couponDetails: couponDetails ? couponDetails : null, // Store full coupon details if applied
+      onlineAmount : formData.onlineAmount,
+      cashAmount : formData.cashAmount,
     };
+    console.log("payload:", payload);
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("https://gamezonecrm.onrender.com/api/customers/add", {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/add`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -421,7 +427,7 @@ const CreateOrders = () => {
         console.log("Marking coupon as used: mai andar hu");
         console.log("Coupon code:", couponDetails.code);
         await fetch(
-          `https://gamezonecrm.onrender.com/api/admin/discounts/markUsed/${couponDetails.code}`,
+          `${import.meta.env.VITE_BACKEND_URL}/api/admin/discounts/markUsed/${couponDetails.code}`,
           {
             method: "PATCH",
             headers: {
@@ -434,7 +440,7 @@ const CreateOrders = () => {
 
       // save data of snacks and drinks in database for cafe purpose only if cafe is enabled
       if (fetchedStore?.isCafeEnabled && snackData.items?.length > 0) {
-        await fetch("https://gamezonecrm.onrender.com/api/orders/gamezone", {
+        await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/orders/gamezone`, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -485,7 +491,7 @@ const CreateOrders = () => {
 
     try {
       const res = await fetch(
-        `https://gamezonecrm.onrender.com/api/admin/discounts/getCoupon/${couponCode}`
+        `${import.meta.env.VITE_BACKEND_URL}/api/admin/discounts/getCoupon/${couponCode}`
       );
       const response = await res.json();
 
@@ -697,141 +703,164 @@ const CreateOrders = () => {
                           />
                         </div>
 
-                        <h5
-                          className="mb-2 pb-1 border-bottom border-secondary mt-3"
-                          style={{ color: "#22c55e", fontSize: "1.1rem" }}
-                        >
-                          Gaming Details
-                        </h5>
-
-                        <div className="mb-3">
-                          <label
-                            htmlFor="screen"
-                            className="form-label fw-semibold"
-                            style={{ fontSize: "0.9rem" }}
+                        <div className="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary mt-4">
+                          <h5
+                            className="mb-0"
+                            style={{ color: "#22c55e", fontSize: "1.1rem" }}
                           >
-                            Select Screen
-                          </label>
-                          <select
-                            id="screen"
-                            name="screen"
-                            value={formData.screen}
-                            onChange={handleInputChange}
-                            className="form-select"
-                            required
+                            Gaming Details
+                          </h5>
+                          <button
+                            type="button"
+                            onClick={() => setShowGamingDetails(!showGamingDetails)}
+                            className="btn btn-sm"
                             style={{
-                              backgroundColor: "#334155",
+                              backgroundColor: "#22c55e",
                               color: "white",
                               border: "none",
-                              fontSize: "0.9rem",
+                              fontSize: "0.8rem",
+                              padding: "4px 12px"
                             }}
                           >
-                            <option value="">-- Select Screen --</option>
-                            {screenOptions.map((screen) => {
-                              const isActive = activeScreens.includes(
-                                screen.toLowerCase()
-                              );
-                              return (
-                                <option
-                                  key={screen}
-                                  value={screen}
-                                  disabled={isActive}
+                            {showGamingDetails ? "Hide" : "Show"}
+                          </button>
+                        </div>
+
+                        {showGamingDetails && (
+                          <>
+                            <div className="mb-4">
+                              <label
+                                htmlFor="screen"
+                                className="form-label fw-semibold mb-2"
+                                style={{ fontSize: "0.9rem" }}
+                              >
+                                Select Screen
+                              </label>
+                              <select
+                                id="screen"
+                                name="screen"
+                                value={formData.screen}
+                                onChange={handleInputChange}
+                                className="form-select"
+                             
+                                style={{
+                                  backgroundColor: "#334155",
+                                  color: "white",
+                                  border: "none",
+                                  fontSize: "0.9rem",
+                                  height: "42px"
+                                }}
+                              >
+                                <option value="">-- Select Screen --</option>
+                                {screenOptions.map((screen) => {
+                                  const isActive = activeScreens.includes(
+                                    screen.toLowerCase()
+                                  );
+                                  return (
+                                    <option
+                                      key={screen}
+                                      value={screen}
+                                      disabled={isActive}
+                                      style={{
+                                        color: isActive ? "red" : "inherit",
+                                      }}
+                                    >
+                                      {screen.toUpperCase()}{" "}
+                                      {isActive ? "(Allocated)" : ""}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+
+                            <div className="mb-4">
+                              <label
+                                htmlFor="game"
+                                className="form-label fw-semibold mb-2"
+                                style={{ fontSize: "0.9rem" }}
+                              >
+                                Game
+                              </label>
+                              <input
+                                id="game"
+                                name="game"
+                                type="text"
+                                value={formData.game}
+                                readOnly
+                                className="form-control"
+                                style={{
+                                  backgroundColor: "#334155",
+                                  color: "white",
+                                  border: "none",
+                                  fontSize: "0.9rem",
+                                  height: "42px"
+                                }}
+                                placeholder="Auto-selected based on screen"
+                              />
+                            </div>
+
+                            <div className="row g-3 mb-2">
+                              <div className="col-sm-6">
+                                <label
+                                  htmlFor="duration"
+                                  className="form-label fw-semibold mb-2"
+                                  style={{ fontSize: "0.9rem" }}
+                                >
+                                  Duration
+                                </label>
+                                <select
+                                  id="duration"
+                                  name="duration"
+                                  value={formData.duration}
+                                  onChange={handleInputChange}
+                                  className="form-select"
+                                
                                   style={{
-                                    color: isActive ? "red" : "inherit",
+                                    backgroundColor: "#334155",
+                                    color: "white",
+                                    border: "none",
+                                    fontSize: "0.9rem",
+                                    height: "42px"
                                   }}
                                 >
-                                  {screen.toUpperCase()}{" "}
-                                  {isActive ? "(Allocated)" : ""}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
-
-                        <div className="mb-3">
-                          <label
-                            htmlFor="game"
-                            className="form-label fw-semibold"
-                            style={{ fontSize: "0.9rem" }}
-                          >
-                            Game
-                          </label>
-                          <input
-                            id="game"
-                            name="game"
-                            type="text"
-                            value={formData.game}
-                            readOnly
-                            className="form-control"
-                            style={{
-                              backgroundColor: "#334155",
-                              color: "white",
-                              border: "none",
-                              fontSize: "0.9rem",
-                            }}
-                            placeholder="Auto-selected based on screen"
-                          />
-                        </div>
-
-                        <div className="row g-2">
-                          <div className="col-sm-6">
-                            <label
-                              htmlFor="duration"
-                              className="form-label fw-semibold"
-                              style={{ fontSize: "0.9rem" }}
-                            >
-                              Duration
-                            </label>
-                            <select
-                              id="duration"
-                              name="duration"
-                              value={formData.duration}
-                              onChange={handleInputChange}
-                              className="form-select"
-                              required
-                              style={{
-                                backgroundColor: "#334155",
-                                color: "white",
-                                border: "none",
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              <option value={30}>30 Minutes</option>
-                              <option value={60}>1 Hour</option>
-                              <option value={90}>1 Hour 30 Minutes</option>
-                              <option value={120}>2 Hours</option>
-                            </select>
-                          </div>
-
-                          <div className="col-sm-6">
-                            <label
-                              htmlFor="players"
-                              className="form-label fw-semibold"
-                              style={{ fontSize: "0.9rem" }}
-                            >
-                              Players
-                            </label>
-                            <select
-                              id="players"
-                              name="players"
-                              value={formData.players}
-                              onChange={handleInputChange}
-                              className="form-select"
-                              style={{
-                                backgroundColor: "#334155",
-                                color: "white",
-                                border: "none",
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              {getAllowedPlayers(formData.game).map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
+                                  <option value={30}>30 Minutes</option>
+                                  <option value={60}>1 Hour</option>
+                                  <option value={90}>1 Hour 30 Minutes</option>
+                                  <option value={120}>2 Hours</option>
+                                </select>
+                              </div>
+                              <div className="col-sm-6">
+                                <label
+                                  htmlFor="players"
+                                  className="form-label fw-semibold mb-2"
+                                  style={{ fontSize: "0.9rem" }}
+                                >
+                                  Players
+                                </label>
+                                <select
+                                  id="players"
+                                  name="players"
+                                  value={formData.players}
+                                  onChange={handleInputChange}
+                                  className="form-select"
+                                  style={{
+                                    backgroundColor: "#334155",
+                                    color: "white",
+                                    border: "none",
+                                    fontSize: "0.9rem",
+                                    height: "42px"
+                                  }}
+                                >
+                                  {getAllowedPlayers(formData.game).map((n) => (
+                                    <option key={n} value={n}>
+                                      {n}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1129,6 +1158,66 @@ const CreateOrders = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <h5 className="mb-2 pb-1 border-bottom border-secondary mt-4" style={{ color: "#22c55e", fontSize: "1.1rem" }}>
+                    Payment Details
+                  </h5>
+                  <div className="row g-2 mb-3">
+                    <div className="col-sm-6">
+                      <label className="form-label fw-semibold" style={{ fontSize: "0.9rem" }}>Cash Amount</label>
+                      <div className="input-group">
+                        <span className="input-group-text" style={{
+                          backgroundColor: "#334155",
+                          color: "#22c55e",
+                          border: "none",
+                          fontSize: "0.9rem"
+                        }}>₹</span>
+                        <input
+                          type="number"
+                          name="cashAmount"
+                          className="form-control"
+                          value={formData.cashAmount}
+                          onChange={handleInputChange}
+                          placeholder="Enter cash amount"
+                          style={{
+                            backgroundColor: "#1e293b",
+                            color: "white",
+                            border: "none",
+                            fontSize: "0.9rem"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-sm-6">
+                      <label className="form-label fw-semibold" style={{ fontSize: "0.9rem" }}>Online Amount</label>
+                      <div className="input-group">
+                        <span className="input-group-text" style={{
+                          backgroundColor: "#334155",
+                          color: "#22c55e",
+                          border: "none",
+                          fontSize: "0.9rem"
+                        }}>₹</span>
+                        <input
+                          type="number"
+                          name="onlineAmount"
+                          className="form-control"
+                          value={formData.onlineAmount}
+                          onChange={handleInputChange}
+                          placeholder="Enter online amount"
+                          style={{
+                            backgroundColor: "#1e293b",
+                            color: "white",
+                            border: "none",
+                            fontSize: "0.9rem"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-muted small mb-3" style={{ fontSize: "0.8rem" }}>
+                    * Total of cash and online amounts should match the total payment amount
                   </div>
 
                   {/* Submit Button - Full Width */}
