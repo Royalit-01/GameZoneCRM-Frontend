@@ -602,20 +602,10 @@ const ViewOrders = () => {
       <span>
         {minutes}:{seconds.toString().padStart(2, "0")} left
         {/* Hidden audio element for alarm */}
-        <audio 
-          
-          ref={audioRef} 
-          src="/alert.mp3" 
-          
-          preload="auto" 
-          loop={false}
-          onEnded={() => {
-            if (audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-            }
-          }}
-        
+        <audio
+          ref={audioRef}
+          src="/alert.mp3"
+          preload="auto"
           loop={false}
           onEnded={() => {
             if (audioRef.current) {
