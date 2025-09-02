@@ -338,6 +338,7 @@ const ViewOrders = () => {
         }
       );
       const result = await res.json();
+    
 
       if (res.ok) {
         setBookings((bookings) =>
@@ -347,8 +348,8 @@ const ViewOrders = () => {
                 ...b,
                 extend_time: pending.extendTime,
                 extend_amount: pending.extendAmount,
-                timeLeft: `${Number(booking.duration) + pending.extendTime
-                  } minutes`,
+                // timeLeft: `${Number(booking.duration) + pending.extendTime
+                //   } minutes`,
               }
               : b
           )
@@ -356,7 +357,8 @@ const ViewOrders = () => {
         console.log("Extension confirmed successfully:", result);
         setPendingExtension((prev) => ({ ...prev, [bookingId]: undefined }));
         setShowExtendTimePopup(null);
-      } else {
+      }
+       else {
         alert(result.message || "Failed to update extension");
       }
     } catch (error) {
