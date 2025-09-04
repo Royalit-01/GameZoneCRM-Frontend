@@ -206,12 +206,17 @@ const ViewOrders = () => {
             extend_amount: item.extended_amount || 0,
             paid: item.paid || 0,
             players: item.players || 1,
+            nonPlayingMembers: item.nonPlayingMembers || "",
             timeLeft: `${item.duration} minutes`,
             extraSnacksTotal: item.extraSnacksPrice || 0,
             payment: item.payment,
             status: item.status || "active",
             remainingAmount: item.remainingAmount,
             couponDetails: item.couponDetails || null,
+            // New payment fields from backend
+            onlineAmount: item.onlineAmount || 0,
+            cashAmount: item.cashAmount || 0,
+            totalAmount : item.total_amount || 0,
           }));
 
         setBookings(mappedBookings);
@@ -870,7 +875,7 @@ const ViewOrders = () => {
                 return (
                   <div
                     key={booking.id}
-                    onClick={() => setShowCustomerPopup(booking)}
+                    onClick={() => {setShowCustomerPopup(booking); console.log("booking",booking);}}
                     onMouseEnter={() => setActiveCard(booking.id)}
                     onMouseLeave={() => {
                       setActiveCard(null);
@@ -1521,12 +1526,21 @@ const ViewOrders = () => {
               <p>
                 <strong>Screen:</strong> {showCustomerPopup.game}
               </p>
+               <p>
+                <strong>Status:</strong> {showCustomerPopup.status}
+              </p>
               <p>
                 <strong>Duration:</strong> {showCustomerPopup.duration} minutes
               </p>
               <p>
                 <strong>Players:</strong> {showCustomerPopup.players}
               </p>
+               <p>
+                <strong>Non Playing Member:</strong> {showCustomerPopup.nonPlayingMembers} 
+               </p>
+               <p>
+                <strong>Non Playing Member Total Price:</strong> {showCustomerPopup.nonPlayingMembers *20}  
+               </p>
               <p>
                 <strong>Snacks:</strong> {showCustomerPopup.snacks}
               </p>
@@ -1537,8 +1551,17 @@ const ViewOrders = () => {
               <p>
                 <strong>Payment Method:</strong> {showCustomerPopup.payment}
               </p>
+ 
               <p>
-                <strong>Status:</strong> {showCustomerPopup.status}
+                <strong>Online:</strong> {showCustomerPopup.onlineAmount}
+              </p>
+              <p>
+                <strong>Cash:</strong> {showCustomerPopup.cashAmount}
+              </p>
+             
+                            <p>
+                <strong>Total Amount:</strong> ₹
+                {showCustomerPopup.totalAmount}
               </p>
               <p>
                 <strong>Time Left:</strong> {showCustomerPopup.timeLeft}
@@ -1556,6 +1579,7 @@ const ViewOrders = () => {
                 <strong>Extra Snacks Total:</strong> ₹
                 {showCustomerPopup.extraSnacksTotal}
               </p>
+                
             </div>
           </div>
         </div>
