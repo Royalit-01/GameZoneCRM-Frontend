@@ -34,6 +34,10 @@ const ViewOrders = () => {
   const [selectedStopBooking, setSelectedStopBooking] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [fetchedStore, setFetchedStore] = useState(null);
+  const [showSeatChangePopup, setShowSeatChangePopup] = useState(null);
+  const [activeScreens, setActiveScreens] = useState([]);
+  const [showMemberCountPopup, setShowMemberCountPopup] = useState(null);
+  const [memberUpdateDuration, setMemberUpdateDuration] = useState(30); // Default 30 minutes
 
   const customerData = bookings.map((b) => ({
     name: b.name,
@@ -226,6 +230,36 @@ const ViewOrders = () => {
       });
   }, [location, allowedScreens]);
 
+  // Fetch active screens
+  useEffect(() => {
+    const fetchActiveScreens = () => {
+      const token = localStorage.getItem("token");
+      fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/active-screens`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log("Active screens:", data);
+          setActiveScreens(data); // Array of screen names
+        })
+        .catch((err) => {
+          console.error("Error fetching active screens:", err);
+        });
+    };
+
+    // Fetch immediately
+    fetchActiveScreens();
+    
+    // Set up interval to refresh every 30 seconds
+    const interval = setInterval(fetchActiveScreens, 30000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, []);
+
   // fetch today's discount
   useEffect(() => {
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/discounts/today`)
@@ -258,63 +292,7 @@ const ViewOrders = () => {
       });
   }, []);
 
-  // Handle extension input change
-  const handleExtensionInputChange = (booking, val) => {
-    const extendTime = Math.max(0, val || 0);
-
-    const totalDuration =
-      (booking.extend_time || 0) + extendTime + booking.duration;
-
-    let newTotalPrice = getGamePrice(
-      booking.game,
-      totalDuration,
-      booking.players
-    );
-
-    const totalPaid = booking.paid || 0;
-
-    let discountValue = 0;
-    // Apply discount here
-    // 💡 Priority: Coupon > Today's Discount
-    if (coupon && coupon.discountType && coupon.value) {
-      if (coupon.discountType === "percentage") {
-        discountValue = newTotalPrice * (coupon.value / 100);
-        newTotalPrice -= discountValue;
-      } else if (coupon.discountType === "flat") {
-        discountValue = coupon.value;
-        newTotalPrice -= discountValue;
-      }
-    } else if (discountAmount > 0) {
-      if (discountAmount < 1) {
-        // Percentage discount (e.g., 0.1 for 10%)
-        discountValue = newTotalPrice * discountAmount;
-        newTotalPrice -= discountValue;
-      } else {
-        // Fixed discount
-        console.log(`Applying fixed discount: ₹${discountAmount}`);
-        newTotalPrice -= discountAmount;
-      }
-    }
-
-    let extendAmount = newTotalPrice - totalPaid;
-    console.log("Extension Amount before discount:", extendAmount);
-
-    // Prevent negative amounts
-    extendAmount = Math.max(0, extendAmount);
-
-    console.log("Final Extension Amount after discount:", extendAmount);
-
-    setPendingExtension((prev) => ({
-      ...prev,
-      [booking.id]: {
-        extendTime: (booking.extend_time || 0) + extendTime,
-        extendAmount,
-        timeLeft: `${(booking.extend_time || 0) + extendTime} minutes`,
-      },
-    }));
-
-    setExtensionInputs((prev) => ({ ...prev, [booking.id]: extendTime }));
-  };
+  
 
   // Handle extension confirmation
   const handleConfirmExtension = async (bookingId) => {
@@ -469,6 +447,216 @@ const ViewOrders = () => {
     }
   };
 
+  // Handle seat change
+  const handleSeatChange = async (bookingId, newSeat) => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/update/${bookingId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ screen: newSeat }),
+        }
+      );
+      const result = await res.json();
+
+      if (res.ok) {
+        setBookings((bookings) =>
+          bookings.map((b) =>
+            b.id === bookingId ? { ...b, game: newSeat } : b
+          )
+        );
+        setShowSeatChangePopup(null);
+        alert("Seat changed successfully!");
+      } else {
+        alert(result.message || "Failed to change seat");
+      }
+    } catch (error) {
+      alert("Error changing seat: " + error.message);
+    }
+  };
+
+  // Get available screens for seat change (same game only)
+  const getAvailableScreensForSeatChange = (currentBooking) => {
+    if (!fetchedStore || !currentBooking) return [];
+    
+    // Get the current screen name and find its game
+    const currentScreen = currentBooking.game; // This is actually the screen name
+    const currentGame = screenToGame[currentScreen.toLowerCase()];
+    
+    if (!currentGame) return [];
+    
+    // Find all screens that have the same game
+    const screensWithSameGame = fetchedStore.screens
+      .filter(screen => {
+        const game = screen.games?.[0];
+        return game && game.gameName === currentGame;
+      })
+      .map(screen => screen.screenName.toLowerCase())
+      .filter(screenName => screenName !== currentScreen.toLowerCase()); // Exclude current screen
+    
+    return screensWithSameGame;
+  };
+
+  // Handle member count update
+  const handleMemberCountUpdate = async (bookingId, newPlayerCount, newNonPlayingMembers) => {
+    try {
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) {
+        throw new Error("Booking not found");
+      }
+
+      // Ensure duration is a multiple of 30
+      const normalizedDuration = Math.ceil(memberUpdateDuration / 30) * 30;
+
+      // Get the actual game name from screen name
+      const screenName = booking.game.toLowerCase();
+      const actualGame = screenToGame[screenName];
+
+      if (!actualGame) {
+        console.error('Screen to game mapping not found:', {
+          screen: screenName,
+          availableMappings: screenToGame,
+          priceTable: JSON.stringify(priceTable)
+        });
+        throw new Error(`Could not find game for screen ${screenName}`);
+      }
+
+      // Get prices for this specific game
+      const gameKey = Object.keys(priceTable).find(
+        (key) => key.toLowerCase() === actualGame.toLowerCase()
+      );
+      
+      if (!gameKey) {
+        console.error('No price table found for game:', {
+          game: actualGame,
+          availableGames: Object.keys(priceTable),
+          priceTable: JSON.stringify(priceTable)
+        });
+        throw new Error(`No price configuration found for game ${actualGame}`);
+      }
+
+      // Get the exact price for this duration and player count
+      let total = 0;
+      const prices = priceTable[gameKey][normalizedDuration];
+      
+      if (prices && prices[newPlayerCount] !== undefined) {
+        // Direct price found (e.g., 60 minutes, 2 players = ₹80)
+        total = prices[newPlayerCount];
+        console.log(`Found exact price for ${normalizedDuration} minutes and ${newPlayerCount} players:`, {
+          duration: normalizedDuration,
+          players: newPlayerCount,
+          price: total,
+          priceTable: prices
+        });
+      } else {
+        // If exact duration not found, split into chunks
+        let remaining = normalizedDuration;
+        console.log('No exact price found, calculating in chunks...');
+        
+        // Calculate hourly price (60 minutes chunks)
+        while (remaining >= 60) {
+          const hourlyPrice = priceTable[gameKey][60][newPlayerCount];
+          if (hourlyPrice !== undefined) {
+            total += hourlyPrice;
+            remaining -= 60;
+            console.log('Added hourly price:', {
+              hourlyPrice,
+              remainingMinutes: remaining,
+              runningTotal: total
+            });
+          } else {
+            throw new Error(`No hourly price found for game ${actualGame} with ${newPlayerCount} players`);
+          }
+        }
+
+        // Add price for remaining 30 minutes if any
+        if (remaining === 30) {
+          const halfHourPrice = priceTable[gameKey][30][newPlayerCount];
+          if (halfHourPrice !== undefined) {
+            total += halfHourPrice;
+            console.log('Added 30-minute price:', {
+              halfHourPrice,
+              finalTotal: total
+            });
+          }
+        }
+      }
+
+      if (total === 0) {
+        throw new Error(`Could not calculate price for game ${actualGame}. Please check your price configuration.`);
+      }
+
+      console.log("Final Price Calculation Details:", {
+        screen: {
+          name: booking.game,        // 's13'
+          mappedGame: actualGame     // 'PS4'
+        },
+        booking: {
+          duration: normalizedDuration,  // 60 minutes
+          players: newPlayerCount,       // 2 players
+          finalPrice: total             // ₹80
+        },
+        priceTable: {
+          availableDurations: Object.keys(priceTable[gameKey]),  // [30, 60, 90, 120]
+          selectedDurationPrices: priceTable[gameKey][normalizedDuration], // {1: 50, 2: 80, 3: 100, 4: 120}
+          exactPriceFound: total === priceTable[gameKey][normalizedDuration][newPlayerCount]
+        }
+      });
+
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/update-session/${bookingId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            players: newPlayerCount,
+            duration: normalizedDuration,
+            amount: total,
+            game: actualGame,       // Send the actual game name (PS4)
+            screen: booking.game,   // Send the screen name (s13)
+            extended_time: 0,
+            extended_amount: 0
+          }),
+        }
+      );
+      const result = await res.json();
+
+      if (res.ok && result.customer) {
+        // Update with new details from backend
+        const { customer } = result;
+        
+        setBookings((bookings) =>
+          bookings.map((b) =>
+            b.id === bookingId 
+              ? { 
+                  ...b, 
+                  players: newPlayerCount,
+                  nonPlayingMembers: newNonPlayingMembers,
+                  total_amount: customer.total_amount || 0,
+                  extended_time: customer.extended_time || 0,
+                  extended_amount: customer.extended_amount || 0,
+                  paid: customer.paid || 0,
+                  remainingAmount: ((customer.total_amount || 0) - (customer.paid || 0) + (customer.extend_amount || 0) + (customer.extraSnacksTotal || 0))
+                } 
+              : b
+          )
+        );
+        setShowMemberCountPopup(null);
+        
+        // Show simple success message since backend might not provide price breakdown
+        const message = `Member count updated successfully!\n` +
+          `New Total Amount: ₹${customer.total_amount ? customer.total_amount.toFixed(2) : '0.00'}`;
+        
+        alert(message);
+      } else {
+        alert(result.message || "Failed to update member count");
+      }
+    } catch (error) {
+      alert("Error updating member count: " + error.message);
+    }
+  };
+
   // Timer component inside your file (above or below ViewOrders)
   function Timer({
     bookingId,
@@ -480,6 +668,7 @@ const ViewOrders = () => {
     const storageKey = `timer_${bookingId}`;
     const startTimeKey = `start_time_${bookingId}`;
     const extendStorageKey = `timer_extend_${bookingId}`;
+    const expiredExtendKey = `timer_expired_extend_${bookingId}`;
     const alertedRef = useRef(false);
     const prevInitialMinutesRef = useRef(initialMinutes);
     const lastAppliedExtendRef = useRef(0);
@@ -503,12 +692,36 @@ const ViewOrders = () => {
     const [secondsLeft, setSecondsLeft] = useState(() => {
       const startTime = localStorage.getItem(startTimeKey);
       const storedExtend = localStorage.getItem(extendStorageKey) || "0";
+      const storedSecondsLeft = localStorage.getItem(storageKey);
+      const expiredExtendTime = localStorage.getItem(expiredExtendKey);
 
       if (!startTime) {
         // First time initialization
         const now = new Date().getTime();
         localStorage.setItem(startTimeKey, now.toString());
         return initialMinutes * 60;
+      }
+
+      // If timer was extended after expiring, calculate remaining time from the new start time
+      if (expiredExtendTime) {
+        const extendedMinutes = parseInt(expiredExtendTime);
+        if (!isNaN(extendedMinutes) && extendedMinutes > 0) {
+          const now = new Date().getTime();
+          const start = parseInt(startTime);
+          const extendedSeconds = extendedMinutes * 60;
+          const elapsedSeconds = Math.floor((now - start) / 1000);
+          const remainingSeconds = Math.max(0, extendedSeconds - elapsedSeconds);
+          console.log(`Timer ${bookingId}: Extended after expiry - ${extendedMinutes}min, elapsed: ${elapsedSeconds}s, remaining: ${remainingSeconds}s`);
+          return remainingSeconds;
+        }
+      }
+
+      // If we have stored seconds left, use that
+      if (storedSecondsLeft !== null) {
+        const stored = parseInt(storedSecondsLeft);
+        if (!isNaN(stored) && stored >= 0) {
+          return stored;
+        }
       }
 
       // Calculate remaining time based on actual elapsed time
@@ -531,34 +744,49 @@ const ViewOrders = () => {
         alertedRef.current = false;
         lastAppliedExtendRef.current = 0;
         localStorage.setItem(extendStorageKey, "0");
+        localStorage.removeItem(expiredExtendKey); // Clear expired extend key
         prevInitialMinutesRef.current = initialMinutes;
         setIsStopped(false);
       }
-    }, [initialMinutes, storageKey, extendStorageKey]);
+    }, [initialMinutes, storageKey, extendStorageKey, expiredExtendKey]);
 
     // Handle extension
     useEffect(() => {
       const extendDiff = extendTime - lastAppliedExtendRef.current;
       if (extendDiff > 0) {
         setSecondsLeft((prev) => {
-          const updated = prev + extendDiff * 60;
+          // If timer was at 0 or negative, start from the extension time and mark as expired extend
+          if (prev <= 0) {
+            console.log(`Timer ${bookingId}: Extending after expiry by ${extendDiff} minutes`);
+            localStorage.setItem(expiredExtendKey, extendDiff.toString());
+            // Reset start time to now for the extended period
+            const now = new Date().getTime();
+            localStorage.setItem(startTimeKey, now.toString());
+          } else {
+            console.log(`Timer ${bookingId}: Normal extension by ${extendDiff} minutes`);
+            // Normal extension - remove expired extend key if it exists
+            localStorage.removeItem(expiredExtendKey);
+          }
+          
+          const updated = prev <= 0 ? extendDiff * 60 : prev + extendDiff * 60;
           localStorage.setItem(storageKey, updated.toString());
           alertedRef.current = false;
           lastAppliedExtendRef.current = extendTime;
           localStorage.setItem(extendStorageKey, extendTime.toString());
           setIsStopped(false); // Restart timer if extended
+          alarmedRef.current = false; // Reset alarm flag when extending
           return updated;
         });
       }
-    }, [extendTime, storageKey, extendStorageKey]);
+    }, [extendTime, storageKey, extendStorageKey, expiredExtendKey, startTimeKey]);
 
     // Main timer effect
     // Ref to ensure alarm/alert only fire once at 0
     const alarmedRef = useRef(false);
     useEffect(() => {
       if (secondsLeft <= 0) {
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(extendStorageKey);
+        // Don't remove localStorage keys immediately - keep them for potential extensions
+        localStorage.setItem(storageKey, "0");
         setIsStopped(true); // Mark as stopped
         // Play sound and show alert only once
         if (!alarmedRef.current) {
@@ -756,11 +984,7 @@ const ViewOrders = () => {
 
   // Calculate price for given game, duration (in minutes), players, and nonPlayingMembers
   function getGamePrice(game, duration, players) {
-    console.log("--- Calculating Game Price ---");
-    console.log("Game:", game);
-    console.log("Duration:", duration);
-    console.log("Players:", players);
-
+  
     // Always use lowercase for screen lookup
     const mappedGame = screenToGame[game.toLowerCase()] || game;
     const gameKey = Object.keys(priceTable).find(
@@ -993,12 +1217,10 @@ const ViewOrders = () => {
                             Extra Snacks Total: ₹{booking.extraSnacksTotal}
                           </li>
                         )}
-                        {(booking.remainingAmount !== 0 ||
-                          booking.extraSnacksTotal !== 0 ||
-                          booking.extend_time !== 0) && (
+                        {(((booking.total_amount || 0) - (booking.paid || 0) + (booking.extend_amount || 0) + (booking.extraSnacksTotal || 0)) > 0) && (
                             <li style={{ color: "red", fontSize: "16px" }}>
                               {" "}
-                              Remaining Amount : ₹{remainingAmount.toFixed(2)}
+                              Remaining Amount : ₹{((booking.total_amount || 0) - (booking.paid || 0) + (booking.extend_amount || 0) + (booking.extraSnacksTotal || 0)).toFixed(2)}
                             </li>
                           )}
                       </ul>
@@ -1236,13 +1458,20 @@ const ViewOrders = () => {
                             <div
                               style={{
                                 display: "flex",
-                                flexDirection: "row",
+                                flexDirection: "column",
                                 gap: 12,
                                 marginTop: 10,
                                 marginBottom: 10,
                               }}
                             >
-                              <>
+                              {/* First row - Extend Time and Add Snacks */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "row",
+                                  gap: 12,
+                                }}
+                              >
                                 <button
                                   onClick={() => {
                                     setShowExtendTimePopup(booking.id);
@@ -1285,7 +1514,37 @@ const ViewOrders = () => {
                                     Add Snacks
                                   </button>
                                 )}
-                              </>
+                              </div>
+                              
+                              {/* Second row - Seat Change and Update Member Count */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "row",
+                                  gap: 12,
+                                }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    setShowSeatChangePopup(booking.id);
+                                    setShowExtensionMenu(null);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    padding: "10px",
+                                    background: "#3b82f6",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    fontWeight: "bold",
+                                    fontSize: 15,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Seat Change
+                                </button>
+                               
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1442,6 +1701,164 @@ const ViewOrders = () => {
           </div>
         </div>
       )}
+
+      {/* Seat Change Popup */}
+      {showSeatChangePopup && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => setShowSeatChangePopup(null)}
+        >
+          <div
+            style={{
+              background: "#101921",
+              border: "1px solid #333",
+              borderRadius: 14,
+              padding: 32,
+              minWidth: 340,
+              maxWidth: 420,
+              boxShadow: "0 6px 32px rgba(0,0,0,0.5)",
+              color: "#fff",
+              position: "relative",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowSeatChangePopup(null)}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                fontSize: 22,
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+            <h3 style={{ color: "#3b82f6", marginBottom: 16 }}>Change Seat</h3>
+           {(() => {
+              const currentBooking = bookings.find(b => b.id === showSeatChangePopup);
+              const currentGame = currentBooking ? screenToGame[currentBooking.game.toLowerCase()] : '';
+              return (
+                <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#1a2332", borderRadius: 6 }}>
+                  <p style={{ margin: 0, color: "#aaa", fontSize: 14 }}>
+                    Current: <span style={{ color: "#fff" }}>{currentBooking?.game.toUpperCase()}</span>
+                  </p>
+                  <p style={{ margin: 0, color: "#aaa", fontSize: 14 }}>
+                    Game: <span style={{ color: "#22c55e" }}>{currentGame}</span>
+                  </p>
+                  <p style={{ margin: "8px 0 0 0", color: "#f59e0b", fontSize: 12 }}>
+                    * Only showing screens with the same game
+                  </p>
+                </div>
+              );
+            })()}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ color: "#aaa", marginBottom: 8, display: "block" }}>
+                Select New Seat:
+              </label>
+              <select
+                id={`seat-select-${showSeatChangePopup}`}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  background: "#1e2a35",
+                  color: "#fff",
+                  border: "1px solid #3b82f6",
+                  borderRadius: 6,
+                  fontSize: 16,
+                }}
+              >
+                <option value="">Select a seat...</option>
+                {(() => {
+                  const currentBooking = bookings.find(b => b.id === showSeatChangePopup);
+                  const availableScreens = getAvailableScreensForSeatChange(currentBooking);
+                  
+                  if (availableScreens.length === 0) {
+                    return (
+                      <option value="" disabled style={{ color: "#f59e0b" }}>
+                        No other screens available for this game
+                      </option>
+                    );
+                  }
+                  
+                  return availableScreens.map((screen) => {
+                    const isActive = activeScreens.includes(screen.toLowerCase());
+                    return (
+                      <option 
+                        key={screen} 
+                        value={screen}
+                        disabled={isActive}
+                        style={{
+                          color: isActive ? "red" : "inherit",
+                          backgroundColor: isActive ? "#2a1a1a" : "inherit"
+                        }}
+                      >
+                         {screen.toUpperCase()} {isActive ? "(Active)" : ""}
+                      </option>
+                    );
+                  });
+                })()}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setShowSeatChangePopup(null)}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#444",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const selectElement = document.getElementById(`seat-select-${showSeatChangePopup}`);
+                  const newSeat = selectElement.value;
+                  if (newSeat) {
+                    handleSeatChange(showSeatChangePopup, newSeat);
+                  } else {
+                    alert("Please select a seat");
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#3b82f6",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Change Seat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+     
 
       {showCustomerPopup && (
         <div
