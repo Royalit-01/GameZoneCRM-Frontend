@@ -38,6 +38,8 @@ const ViewOrders = () => {
   const [activeScreens, setActiveScreens] = useState([]);
   const [showMemberCountPopup, setShowMemberCountPopup] = useState(null);
   const [memberUpdateDuration, setMemberUpdateDuration] = useState(30); // Default 30 minutes
+  const [memberCountPlayers, setMemberCountPlayers] = useState(1);
+  const [memberCountNonPlaying, setMemberCountNonPlaying] = useState(0);
 
   const customerData = bookings.map((b) => ({
     name: b.name,
@@ -191,37 +193,55 @@ const ViewOrders = () => {
         return res.json();
       })
       .then((data) => {
+        
         if (!Array.isArray(data)) {
           throw new Error("Expected an array, got: " + JSON.stringify(data));
         }
 
-        const mappedBookings = data
-          .filter((item) =>
-            allowedScreens.includes((item.screen || "").toLowerCase())
-          )
-          .map((item) => ({
+        const filteredData = data.filter((item) =>
+          allowedScreens.includes((item.screen || "").toLowerCase())
+        );
+        console.log(filteredData); // karaO
+
+        const mappedBookings = filteredData.map((item) => {
+          // Always use the last session's details if sessions exist
+          const lastSession = item.sessions && item.sessions.length > 0 ? item.sessions[item.sessions.length - 1] : null;
+          console.log( "last",lastSession);
+          
+          // Calculate remaining amount correctly
+          const totalAmount = item.total_amount || 0;
+          const paidAmount = item.paid || 0;
+          const extendAmount = item.extended_amount || 0;
+          const extraSnacksTotal = item.extraSnacksPrice || 0;
+          const calculatedRemainingAmount = totalAmount - paidAmount + extendAmount + extraSnacksTotal;
+          
+          return {
             id: item._id,
             name: item.name,
             phoneNumber: item.phone,
             game: item.screen || "",
-            duration: item.duration,
+            duration:  item.duration,
             snacks: item.snacks,
             extend_time: item.extended_time || 0,
             extend_amount: item.extended_amount || 0,
             paid: item.paid || 0,
-            players: item.players || 1,
-            nonPlayingMembers: item.nonPlayingMembers || "",
-            timeLeft: `${item.duration} minutes`,
+            players: lastSession ? lastSession.players || 1 : item.players || 1,
+            nonPlayingMembers:  item.nonPlayingMembers || "",
+            timeLeft: `${lastSession ? lastSession.duration : item.duration} minutes`,
             extraSnacksTotal: item.extraSnacksPrice || 0,
             payment: item.payment,
             status: item.status || "active",
-            remainingAmount: item.remainingAmount,
+            remainingAmount: calculatedRemainingAmount,
             couponDetails: item.couponDetails || null,
             // New payment fields from backend
             onlineAmount: item.onlineAmount || 0,
             cashAmount: item.cashAmount || 0,
             totalAmount : item.total_amount || 0,
-          }));
+            lastSessionAmount: lastSession ? lastSession.amount : 0,
+            lastSessionDuration :  lastSession ? lastSession.duration : 0 ,
+
+          };
+        });
 
         setBookings(mappedBookings);
       })
@@ -304,16 +324,24 @@ const ViewOrders = () => {
     console.log("Pending Extension:", pending);
     if (!pending || !pending.extendTime) return;
 
+    // Calculate new duration and amount including extension
+    const newDuration = booking.lastSessionDuration + pending.extendTime;
+    console.log("New Duration:", newDuration);
+    const newAmount = getGamePrice(booking.game, newDuration, booking.players) ;
+    console.log("New Amount", newAmount);
+
     // Prepare update data for backend with accumulated values
     const updateData = {
       extended_amount: pending.extendAmount,
       extended_time: pending.extendTime,
+      duration: newDuration,
+      amount: newAmount,
     };
     console.log("Update Data:", updateData);
 
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/customers/update/${bookingId}`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/customers/extend-time/${bookingId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -321,6 +349,7 @@ const ViewOrders = () => {
         }
       );
       const result = await res.json();
+      console.log("newDuration",newDuration, "newAmount",newAmount)
     
 
       if (res.ok) {
@@ -331,8 +360,10 @@ const ViewOrders = () => {
                 ...b,
                 extend_time: pending.extendTime,
                 extend_amount: pending.extendAmount,
-                // timeLeft: `${Number(booking.duration) + pending.extendTime
-                //   } minutes`,
+                duration: newDuration,
+                total_amount: newAmount,
+                remainingAmount: newAmount - b.paid + (b.extraSnacksTotal || 0),
+                // timeLeft: `${newDuration} minutes`,
               }
               : b
           )
@@ -347,6 +378,69 @@ const ViewOrders = () => {
     } catch (error) {
       alert("Error updating extension: " + error.message);
     }
+  };
+
+  // Define missing handleExtensionInputChange function
+const handleExtensionInputChange = (booking, extendTime) => {
+    if (!booking || !extendTime) return;
+
+    const game = booking.game.toLowerCase();
+    const actualGame = screenToGame[game];
+    if (!actualGame) {
+      console.error("Game not found for screen:", game);
+      return;
+    }
+
+    const gameKey = Object.keys(priceTable).find(
+      (key) => key.toLowerCase() === actualGame.toLowerCase()
+    );
+    if (!gameKey) {
+      console.error("Price table not found for game:", actualGame);
+      return;
+    }
+
+    const players = booking.players || 1;
+    let totalAmount = 0;
+    let remaining = extendTime;
+
+    while (remaining >= 60) {
+      if (
+        priceTable[gameKey][60] &&
+        priceTable[gameKey][60][players] !== undefined
+      ) {
+        totalAmount += priceTable[gameKey][60][players];
+        remaining -= 60;
+      } else {
+        console.warn("Price not found for 60 min slot");
+        break;
+      }
+    }
+    if (remaining === 30) {
+      if (
+        priceTable[gameKey][30] &&
+        priceTable[gameKey][30][players] !== undefined
+      ) {
+        totalAmount += priceTable[gameKey][30][players];
+      } else {
+        console.warn("Price not found for 30 min slot");
+      }
+    }
+
+    // Use last game session duration to get total amount
+    const newDuration = booking.lastSessionDuration + extendTime;
+    console.log("New Duration:",newDuration, booking.lastSessionDuration , extendTime);
+   
+    const newAmount =  getGamePrice(booking.game, newDuration, players)  - booking.lastSessionAmount ;
+     console.log(" - booking.lastSessionAmount ", booking.lastSessionAmount , "newAmount" ,newAmount )
+
+    setPendingExtension((prev) => ({
+      ...prev,
+      [booking.id]: {
+        extendTime,
+        extendAmount: totalAmount,
+        remainingAmount: newAmount,
+      },
+    }));
   };
 
   // Add this handler for pending snacks
@@ -444,6 +538,68 @@ const ViewOrders = () => {
       }
     } catch (error) {
       alert("Error updating snacks: " + error.message);
+    }
+  };
+
+  // Handle member count update
+  const handleUpdateMemberCount = async (bookingId, playerCount, nonPlayingCount, duration) => {
+    if (!bookingId) return;
+
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const game = screenToGame[booking.game.toLowerCase()];
+    if (!game) {
+      alert("Game not found for this screen");
+      return;
+    }
+
+    const gamePrice = getGamePrice(game, duration, playerCount);
+    const totalAmount = gamePrice ;
+
+    const token = localStorage.getItem("token");
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/gamesession/extend/${bookingId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          players: playerCount,
+          nonPlayingMembers: nonPlayingCount,
+          duration: duration,
+          amount: totalAmount
+        }),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        // Update the local state
+        setBookings(prevBookings =>
+          prevBookings.map(b =>
+            b.id === bookingId
+              ? {
+                  ...b,
+                  players: playerCount,
+                  nonPlayingMembers: nonPlayingCount,
+                  duration: duration,
+                  total_amount: totalAmount,
+                  ...result // Include any updated values from the server
+                }
+              : b
+          )
+        );
+
+        setShowMemberCountPopup(null);
+        alert("Member count updated successfully!");
+      } else {
+        alert(result.message || "Failed to update member count");
+      }
+    } catch (error) {
+      alert("Error updating member count: " + error.message);
     }
   };
 
@@ -801,6 +957,10 @@ const ViewOrders = () => {
         return;
       } else {
         alarmedRef.current = false; // Reset if timer is restarted
+        // Only reset alertedRef if the time is above 5 minutes
+        if (secondsLeft > 300) {
+          alertedRef.current = false;
+        }
       }
       if (isStopped) return; // Do not start interval if stopped
 
@@ -1217,10 +1377,10 @@ const ViewOrders = () => {
                             Extra Snacks Total: ₹{booking.extraSnacksTotal}
                           </li>
                         )}
-                        {(((booking.total_amount || 0) - (booking.paid || 0) + (booking.extend_amount || 0) + (booking.extraSnacksTotal || 0)) > 0) && (
+                        {booking.remainingAmount > 0 && (
                             <li style={{ color: "red", fontSize: "16px" }}>
                               {" "}
-                              Remaining Amount : ₹{((booking.total_amount || 0) - (booking.paid || 0) + (booking.extend_amount || 0) + (booking.extraSnacksTotal || 0)).toFixed(2)}
+                              Remaining Amount : ₹{booking.remainingAmount.toFixed(2)} 
                             </li>
                           )}
                       </ul>
@@ -1543,7 +1703,27 @@ const ViewOrders = () => {
                                 >
                                   Seat Change
                                 </button>
-                               
+                                {/* <button
+                                  onClick={() => {
+                                    setMemberCountPlayers(booking.players || 1);
+                                    setMemberCountNonPlaying(booking.nonPlayingMembers || 0);
+                                    setShowMemberCountPopup(booking.id);
+                                    setShowExtensionMenu(null);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    padding: "10px",
+                                    background: "#10b981",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    fontWeight: "bold",
+                                    fontSize: 15,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Update Members
+                                </button> */}
                               </div>
                             </div>
                           </div>
@@ -1661,7 +1841,7 @@ const ViewOrders = () => {
                     {pendingExtension[showExtendTimePopup].extendTime} minutes
                     <br />
                     Remaining Amount: ₹
-                    {pendingExtension[showExtendTimePopup].extendAmount.toFixed(
+                    {pendingExtension[showExtendTimePopup].remainingAmount.toFixed(
                       2
                     )}
                   </div>
@@ -2104,6 +2284,162 @@ const ViewOrders = () => {
       )}
 
       {/* Mobile-only scrollbar CSS */}
+    
+
+      {/* Member Count Update Popup */}
+      {showMemberCountPopup && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.7)",
+            zIndex: 5000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setShowMemberCountPopup(null)}
+        >
+          <div
+            style={{
+              background: "#121b26",
+              borderRadius: "16px",
+              padding: "32px 40px",
+              maxWidth: "480px",
+              width: "100%",
+              color: "#e0e6f1",
+              position: "relative",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowMemberCountPopup(null)}
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                background: "transparent",
+                border: "none",
+                color: "#f7c844",
+                fontSize: "28px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+
+            <h3 style={{ color: "#22cc5e", marginBottom: "24px" }}>Update Members</h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Playing Members Input */}
+              <div>
+                <label style={{ color: "#aaa", marginBottom: "8px", display: "block" }}>
+                  Playing Members:
+                </label>
+                <input
+                  type="number"
+                  value={memberCountPlayers}
+                  onChange={(e) => setMemberCountPlayers(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1))}
+                  onFocus={(e) => e.target.select()}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "#1e2a35",
+                    border: "1px solid #3b82f6",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "16px",
+                  }}
+                  min="1"
+                  placeholder="Enter players"
+                />
+              </div>
+
+              {/* Non-Playing Members Input */}
+              <div>
+                <label style={{ color: "#aaa", marginBottom: "8px", display: "block" }}>
+                  Non-Playing Members:
+                </label>
+                <input
+                  type="number"
+                  value={memberCountNonPlaying}
+                  onChange={(e) => setMemberCountNonPlaying(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                  onFocus={(e) => e.target.select()}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "#1e2a35",
+                    border: "1px solid #3b82f6",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "16px",
+                  }}
+                  min="0"
+                  placeholder="Enter non-players"
+                />
+              </div>
+
+              {/* Duration Input */}
+              <div>
+                <label style={{ color: "#aaa", marginBottom: "8px", display: "block" }}>
+                  Duration (minutes):
+                </label>
+                <input
+                  type="number"
+                  value={memberUpdateDuration}
+                  onChange={(e) => setMemberUpdateDuration(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1))}
+                  onFocus={(e) => e.target.select()}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "#1e2a35",
+                    border: "1px solid #3b82f6",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "16px",
+                  }}
+                  min="1"
+                  placeholder="Enter duration"
+                />
+              </div>
+
+              {/* Update Button */}
+              <button
+                onClick={() => {
+                  if (showMemberCountPopup) {
+                    const booking = bookings.find(b => b.id === showMemberCountPopup);
+                    if (booking) {
+                      handleUpdateMemberCount(booking.id, memberCountPlayers, memberCountNonPlaying, memberUpdateDuration);
+                    }
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  marginTop: "8px",
+                  background: "#22cc5e",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Update Members
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media (min-width: 769px) {
           .mobile-scroll-container {
